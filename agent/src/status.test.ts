@@ -39,7 +39,7 @@ test("statusOf: 키 뇌는 키가 있어야 준비, 로컬은 말 못 걸고, cl
 test("statusOf: 커넥터는 기능마다 모드·준비만, ICS 주소·토큰은 없다 · 이름", () => {
   const ics = "https://calendar.example.com/private-abc123/basic.ics";
   const s = statusOf(cfgWith({ provider: "local" }, { connectors: { calendar: { mode: "api", icsUrl: ics }, slack: { mode: "api", userToken: "xoxp-secret-1" } }, user: { name: "홍길동" } }), { env: { PATH: "" }, hasServer: noServer });
-  assert.deepEqual(s.connectors.map((c) => c.cap), ["slack", "calendar", "mail", "issues"]);
+  assert.deepEqual(s.connectors.map((c) => c.cap), ["slack", "calendar", "mail", "issues", "notion"]);
   assert.equal(s.connectors.find((c) => c.cap === "calendar")!.ready, true);
   assert.equal(s.connectors.find((c) => c.cap === "mail")!.ready, false);
   assert.deepEqual(s.user, { name: "홍길동" });

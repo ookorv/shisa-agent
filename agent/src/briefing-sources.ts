@@ -16,6 +16,7 @@ const BUBBLE: Record<SourceId, string> = {
   get mail() { return tr("status.bub_mail"); },
   get calendar() { return tr("status.bub_calendar"); },
   get issues() { return tr("status.bub_issues"); },
+  get notion() { return tr("status.bub_notion"); },
 };
 // 같은 서버를 여러 기능이 같이 쓰면(예: ms365 = 메일·일정) 도구 이름으로 가른다
 const TOOL_HINT: Record<SourceId, RegExp> = {
@@ -23,6 +24,7 @@ const TOOL_HINT: Record<SourceId, RegExp> = {
   mail: /mail|message|inbox|email/i,
   calendar: /calendar|event|meeting|schedule/i,
   issues: /issue|pull|pr|search|list|read|me/i,
+  notion: /notion|page|search|fetch/i,
 };
 
 // 단계 글이 어느 출처의 데이터 호출인가. "서버.도구" 모양만(mcp__…·ToolSearch·cy.*·code.* 는 아님)
@@ -74,7 +76,7 @@ export function briefingDue(last: { at: string } | null | undefined, intervalMin
 
 // 브리핑 지시 한 줄의 앞머리(settings.ts excludeBriefingSources 가 이걸로 출처를 알아본다)
 export const STEP_HEAD: Record<SourceId | "sessions", string> = {
-  calendar: "캘린더:", mail: "메일:", slack: "slack:", issues: "이슈:", sessions: "위 최근 세션",
+  calendar: "캘린더:", mail: "메일:", slack: "slack:", issues: "이슈:", notion: "노션:", sessions: "위 최근 세션",
 };
 
 // 정기 브리핑 지시. 연결된 기능만 번호를 매긴다. ready: 실제로 쓸 수 있는 기능(null = 모름 — 설정된 건 다 시킨다)

@@ -4,10 +4,10 @@
 import { ALL_PROVIDERS, CLI_PROVIDERS, DAEMON_BRAIN, KEY_PROVIDERS } from './sisa-store.js';
 import { t } from './i18n.js';
 
-export const CONNECTOR_CAPS = ['slack', 'calendar', 'mail', 'issues'];
+export const CONNECTOR_CAPS = ['slack', 'calendar', 'mail', 'issues', 'notion'];
 export const okCap = (cap) => typeof cap === 'string' && CONNECTOR_CAPS.includes(cap);
 export const okBrainId = (p) => typeof p === 'string' && ALL_PROVIDERS.includes(p);
-const CAP_LABEL = { slack: 'Slack', get calendar() { return t('settings.cap_calendar'); }, get mail() { return t('settings.cap_mail'); }, get issues() { return t('settings.cap_issues'); } };
+const CAP_LABEL = { slack: 'Slack', get calendar() { return t('settings.cap_calendar'); }, get mail() { return t('settings.cap_mail'); }, get issues() { return t('settings.cap_issues'); }, notion: 'Notion' };
 
 // 설치 마법사 항목(sisa-ai.json done) ↔ 데몬 커넥터
 export const HUB_CAP = { gcal: 'calendar', outlook: 'calendar', slack: 'slack', jira: 'issues' };

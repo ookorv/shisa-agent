@@ -224,7 +224,7 @@ export class Connections {
         id: `connector:${cap}`, label: st.label, group: "service", check: "local", checkedAt: at, doc: st.doc,
         used: st.mode !== "off", state: st.mode === "off" ? "off" : st.ready ? "ok" : "error", detail: st.detail,
         summary: st.mode === "off" ? t("status.sum_off") : st.mode === "api" ? t("status.sum_api") : st.mode === "imap" ? t("status.sum_imap") : `MCP (${x.mode === "mcp" ? x.server : ""})`,
-        briefing: brief([cap as Capability]),
+        briefing: brief(cap === "notion" ? [] : [cap]), // 노션은 브리핑 출처가 아니다(채팅에서만 읽는다)
         ...(x.mode === "mcp" ? { server: x.server } : {}),
       };
       if (x.mode === "mcp" && st.ready) {

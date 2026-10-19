@@ -70,7 +70,7 @@ test("disconnectConnector: 파일 → 다시 읽기 → 메모리 off, mcp 면 �
   const s = disconnectConnector("slack", { path, cfg, reload: () => ({ changed: true, restarting: true }) });
   assert.deepEqual(s, { ok: true, cap: "slack", reload: { changed: true, restarting: true } });
   // 모르는 기능
-  assert.deepEqual(disconnectConnector("github", { path, cfg, reload }), { ok: false, status: 400, error: "cap must be one of slack|calendar|mail|issues" });
+  assert.deepEqual(disconnectConnector("github", { path, cfg, reload }), { ok: false, status: 400, error: "cap must be one of slack|calendar|mail|issues|notion" });
   const bad = join(dir, "bad.json");
   writeFileSync(bad, "[]");
   const e = disconnectConnector("mail", { path: bad, cfg, reload });
