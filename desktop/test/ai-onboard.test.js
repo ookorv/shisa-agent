@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  AI_PROVIDERS, CLI_PROVIDERS, HUB, PLANS, SISA_SAY, planById, hubFor, aiProvidersFor,
+  AI_PROVIDERS, CLI_PROVIDERS, HUB, EXTRAS, PLANS, SISA_SAY, planById, hubFor, aiProvidersFor,
   wantsPersonaEdit, connectSteps, cannedReply, slotCheck, todoBrief, DEFAULT_PERSONA,
 } from '../src/ai-onboard.js';
 import { checkLlm } from '../src/llm-check.js';
@@ -21,6 +21,13 @@ test('AI 공급자는 넷이고, 슬랙은 쿠키를 쓰지 않는다', () => {
   assert.equal(connectSteps('slack', 'codex')[0].gate, 'blocked');
   assert.equal(connectSteps('slack', null)[0].gate, 'blocked');
   assert.ok(HUB.find((h) => h.id === 'slack'));
+  const notion = all(connectSteps('notion', 'claude'));
+  assert.match(notion, /claude mcp add --scope user --transport http notion https:\/\/mcp\.notion\.com\/mcp/);
+  assert.match(notion, /\*\*notion\*\*.*Authenticate/);
+  assert.equal(connectSteps('notion', 'codex')[0].gate, 'blocked');
+  assert.equal(connectSteps('notion', null)[0].gate, 'blocked');
+  assert.equal(HUB.find((h) => h.id === 'notion').needsAgent, 'claude');
+  assert.ok(EXTRAS.includes('notion'));
   for (const agent of ['claude', 'codex', null]) {
     assert.equal(/xoxc/.test(all(connectSteps('jira', agent))), false);
     assert.equal(/xoxc|쿠키 값|ghp_|github_pat_/.test(all(connectSteps('github', agent))), false);
@@ -113,8 +120,8 @@ test('플랜은 네 가지이고 정해진 모양이다', () => {
 test('hubFor는 플랜의 순서대로 HUB 항목을 돌려준다', () => {
   assert.deepEqual(hubFor('calendar').map((h) => h.id), ['gcal', 'outlook']);
   assert.deepEqual(hubFor('chat').map((h) => h.id), ['gcal', 'outlook']);
-  assert.deepEqual(hubFor('tools').map((h) => h.id), ['gcal', 'outlook', 'slack', 'jira']);
-  assert.deepEqual(hubFor('code').map((h) => h.id), ['gcal', 'outlook', 'slack', 'jira', 'github']);
+  assert.deepEqual(hubFor('tools').map((h) => h.id), ['gcal', 'outlook', 'slack', 'notion', 'jira']);
+  assert.deepEqual(hubFor('code').map((h) => h.id), ['gcal', 'outlook', 'slack', 'notion', 'jira', 'github']);
   assert.deepEqual(hubFor('nope'), []);
   for (const p of PLANS) {
     for (const h of hubFor(p.id)) {
