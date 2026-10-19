@@ -165,7 +165,7 @@ test("설정 라벨(모델 칸·브리핑 출처)·설정 오류·config 안내:
   noKo(notes, "pickBrain notes");
   noKo(loadConfig({}, { port: "x", progressCheckMin: -1, repoRoots: ["rel"] } as any).configNotes ?? [], "config notes");
   for (const p of ["claude-code", "codex", "gemini", "openai", "genspark"]) noKo(brainReady(p, { brain: { provider: p } } as any, { env: {}, commandExists: () => false, exists: () => false }), `brainReady ${p}`);
-  noKo(sourceOf("mail.search", { slack: { mode: "off" }, calendar: { mode: "off" }, mail: { mode: "mcp", server: "mail", tools: {} }, issues: { mode: "off" } } as any), "briefing bubble");
+  noKo(sourceOf("mail.search", { slack: { mode: "off" }, calendar: { mode: "off" }, mail: { mode: "mcp", server: "mail", tools: {} }, issues: { mode: "off" }, notion: { mode: "off" } } as any), "briefing bubble");
 });
 
 test("Slack 메시지(할 일 메뉴·수정 창·자동 완료·제안·작업 내역·캔버스): ja 면 고정 글에 한글 없음", () => {

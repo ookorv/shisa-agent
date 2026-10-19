@@ -1,4 +1,4 @@
-// 커넥터: 기능(slack·calendar·mail·issues)마다 데이터를 어디서 읽을지 고른다. ~/.cy-agent/config.json 의 "connectors".
+// 커넥터: 기능(slack·calendar·mail·issues·notion)마다 데이터를 어디서 읽을지 고른다. ~/.cy-agent/config.json 의 "connectors".
 //
 //   mode = "api"     — MCP 없이 우리 코드가 직접 읽는다(결정적, 모델 중계 없음).
 //                       slack: 내 Slack 앱의 사용자 토큰(xoxp-…, 읽기 스코프만)으로 Web API
@@ -24,18 +24,19 @@ import { hasUserMcpServer } from "./mcp.ts";
 import { MAIL_PRESETS, isMailPreset, mailHostOk, type MailPresetId } from "./mail-presets.ts";
 import { t } from "./i18n.ts";
 
-export const CAPABILITIES = ["slack", "calendar", "mail", "issues"] as const;
+export const CAPABILITIES = ["slack", "calendar", "mail", "issues", "notion"] as const;
 export type Capability = (typeof CAPABILITIES)[number];
 export type Mode = "mcp" | "api" | "imap" | "off";
 
 // 화면 이름(지금 언어로 — 읽을 때마다 t())
-export const CAP_LABELS: Record<Capability, string> = { slack: "Slack", get calendar() { return t("status.cap_calendar"); }, get mail() { return t("status.cap_mail"); }, get issues() { return t("status.cap_issues"); } };
+export const CAP_LABELS: Record<Capability, string> = { slack: "Slack", get calendar() { return t("status.cap_calendar"); }, get mail() { return t("status.cap_mail"); }, get issues() { return t("status.cap_issues"); }, notion: "Notion" };
 // 기능별로 고를 수 있는 모드(api 는 slack·calendar 만, imap 은 메일만)
 export const MODES: Record<Capability, readonly Mode[]> = {
   slack: ["api", "mcp", "off"],
   calendar: ["api", "mcp", "off"],
   mail: ["imap", "mcp", "off"],
   issues: ["mcp", "off"],
+  notion: ["mcp", "off"],
 };
 // 매핑할 수 있는 역할(우리 코드·프롬프트가 부르는 몇 안 되는 도구)
 export const ROLES: Record<Capability, readonly string[]> = {
@@ -43,6 +44,7 @@ export const ROLES: Record<Capability, readonly string[]> = {
   calendar: ["listEvents", "search"],
   mail: ["search", "read"],
   issues: ["search", "list", "read", "searchPrs", "me"],
+  notion: ["search", "read"],
 };
 
 export type Preset = { server: string; tools: Record<string, string>; source: string; note?: string };
@@ -79,6 +81,10 @@ export const PRESETS: Partial<Record<Capability, Record<string, Preset>>> = {
       source: "https://github.com/github/github-mcp-server",
     },
   },
+  notion: {
+    // Notion 공식 원격 MCP(https://mcp.notion.com/mcp, OAuth)
+    notion: { server: "notion", tools: { search: "notion-search", read: "notion-fetch" }, source: "https://developers.notion.com/docs/mcp" },
+  },
 };
 
 export type OffConn = { cap: Capability; mode: "off"; reason?: string };
@@ -99,7 +105,7 @@ export type MailImapConn = { cap: "mail"; mode: "imap"; accounts: MailImapAccoun
 export type MailTarget = MailImapAccount & { sinceHours: number; skipPromotions: boolean };
 export type Conn = OffConn | McpConn | SlackApiConn | CalendarApiConn | MailImapConn;
 type Common = OffConn | McpConn;
-export type Connectors = { slack: Common | SlackApiConn; calendar: Common | CalendarApiConn; mail: Common | MailImapConn; issues: Common };
+export type Connectors = { slack: Common | SlackApiConn; calendar: Common | CalendarApiConn; mail: Common | MailImapConn; issues: Common; notion: Common };
 
 const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
 // 예시 설정의 자리표시자(xoxp-..., …/.../basic.ics)는 값이 없는 것으로 본다
@@ -142,6 +148,7 @@ export function resolveConnectors(env: NodeJS.ProcessEnv = process.env, file: Fi
   return {
     slack: one("slack") as Connectors["slack"], calendar: one("calendar") as Connectors["calendar"],
     mail: one("mail") as Connectors["mail"], issues: one("issues") as Connectors["issues"],
+    notion: one("notion") as Connectors["notion"],
   };
 }
 

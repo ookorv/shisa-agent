@@ -112,7 +112,7 @@ export const REQUEST_SCHEMA = {
 // 커넥터별로 어디서 무엇을 읽는지 한 줄씩
 export function sourcesLine(c: Connectors = CONNECTORS): string {
   const parts: string[] = [];
-  for (const k of ["slack", "calendar", "mail", "issues"] as const) {
+  for (const k of ["slack", "calendar", "mail", "issues", "notion"] as const) {
     const x = c[k];
     if (x.mode === "mcp") parts.push(`${k} MCP(${Object.values(x.tools).map((t) => mcpTool(x.server, t)).join(", ") || mcpTool(x.server, "*")})`);
   }

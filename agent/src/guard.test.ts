@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isReadOnlyCall } from "./guard.ts";
+import { allowedMcpServers, isReadOnlyCall, mcpServerVerdict } from "./guard.ts";
 import { resolveConnectors, brainAllowedTools } from "./connectors.ts";
 
 test("개인 설정: mcp 커넥터는 매핑된 읽기 도구만, 쓰기 이름은 매핑에 있어도 차단", () => {
@@ -63,4 +63,28 @@ test("열린 서버(매핑 없음): 위쪽 프로젝트의 쓰기 도구는 이�
     "mcp__slack__slack_add_reaction", "mcp__slack__slack_create_conversation", "mcp__slack__slack_get_file_upload_url", "mcp__slack__slack_complete_file_upload"]) assert.equal(ok(w), false, w);
   for (const r of ["mcp__m__search_emails", "mcp__m__read_email", "mcp__ms365__list-mail-messages", "mcp__ms365__get-calendar-view",
     "mcp__slack__slack_search_public_and_private", "mcp__slack__slack_read_channel", "mcp__slack__slack_read_thread", "mcp__slack__slack_search_users"]) assert.equal(ok(r), true, r);
+});
+
+test("notion 커넥터: 등록하면 노션 MCP 의 읽기 도구·리소스만, 쓰기 도구는 막고, 안 등록하면 서버째 막는다", () => {
+  const on = resolveConnectors({}, { connectors: { notion: { mode: "mcp", server: "notion" } } });
+  assert.equal(on.notion.mode, "mcp");
+  const ok = (n: string) => isReadOnlyCall(n, {}, on).allow;
+  assert.equal(ok("mcp__notion__notion-search"), true);
+  assert.equal(ok("mcp__notion__notion-fetch"), true);
+  assert.equal(ok("mcp__notion__notion-create-pages"), false);
+  assert.equal(ok("mcp__notion__notion-update-page"), false);
+  assert.equal(ok("mcp__notion__notion-delete-pages"), false);
+  const allowed = allowedMcpServers(on);
+  assert.equal(mcpServerVerdict("mcp__notion__notion-search", {}, allowed).allow, true);
+  assert.equal(mcpServerVerdict("ReadMcpResourceTool", { server: "notion", uri: "notion://docs/memory" }, allowed).allow, true);
+
+  const preset = resolveConnectors({}, { connectors: { notion: { mode: "mcp", preset: "notion" } } });
+  assert.deepEqual(preset.notion, { cap: "notion", mode: "mcp", server: "notion", preset: "notion", tools: { search: "notion-search", read: "notion-fetch" } });
+  assert.equal(isReadOnlyCall("mcp__notion__notion-get-users", {}, preset).allow, false, "프리셋 매핑 밖");
+
+  const off = resolveConnectors({}, {});
+  assert.equal(off.notion.mode, "off");
+  assert.equal(isReadOnlyCall("mcp__notion__notion-search", {}, off).allow, false);
+  assert.equal(mcpServerVerdict("mcp__notion__notion-search", {}, allowedMcpServers(off)).allow, false);
+  assert.equal(mcpServerVerdict("ListMcpResourcesTool", { server: "notion" }, allowedMcpServers(off)).allow, false);
 });

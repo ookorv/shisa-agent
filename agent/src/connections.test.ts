@@ -68,7 +68,7 @@ test("Connections: 처음엔 비싼 확인(claude)은 pending, list 는 net·gh 
   assert.equal(byId(rows, "claude").pending, true);
   assert.equal(byId(rows, "brain").state, "ok");
   assert.match(byId(rows, "brain").detail!, /Claude Code/);
-  assert.deepEqual(rows.filter((r) => r.group === "service").map((r) => r.id), ["connector:slack", "connector:calendar", "connector:mail", "connector:issues"]);
+  assert.deepEqual(rows.filter((r) => r.group === "service").map((r) => r.id), ["connector:slack", "connector:calendar", "connector:mail", "connector:issues", "connector:notion"]);
   const mail = byId(rows, "connector:mail");
   assert.equal(mail.state, "ok");
   assert.match(mail.detail!, /응답함/);

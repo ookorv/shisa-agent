@@ -11,7 +11,7 @@ export const LOG_FILE_TAIL = 80 * 1024;
 export const SPEECH = t('main.dbg_speech', null, 'ko'); // 한국어판 — 기록에는 speech()(지금 언어)
 export const speech = () => t('main.dbg_speech');
 
-const CONNECTOR_CAPS = ['slack', 'calendar', 'mail', 'issues'];
+const CONNECTOR_CAPS = ['slack', 'calendar', 'mail', 'issues', 'notion'];
 const CONNECTOR_MODES = ['api', 'mcp', 'imap', 'off'];
 const DAEMON_LOG_NAMES = new Set(['com.cy-agent.daemon.log', 'daemon.log']);
 
