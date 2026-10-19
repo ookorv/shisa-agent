@@ -10,7 +10,7 @@ export const okBrainId = (p) => typeof p === 'string' && ALL_PROVIDERS.includes(
 const CAP_LABEL = { slack: 'Slack', get calendar() { return t('settings.cap_calendar'); }, get mail() { return t('settings.cap_mail'); }, get issues() { return t('settings.cap_issues'); }, notion: 'Notion' };
 
 // 설치 마법사 항목(sisa-ai.json done) ↔ 데몬 커넥터
-export const HUB_CAP = { gcal: 'calendar', outlook: 'calendar', slack: 'slack', jira: 'issues' };
+export const HUB_CAP = { gcal: 'calendar', outlook: 'calendar', slack: 'slack', jira: 'issues', notion: 'notion' };
 export const hubsOf = (cap) => Object.keys(HUB_CAP).filter((id) => HUB_CAP[id] === cap);
 
 export const BRAIN_TITLE = { claudecode: 'Claude Code', codexcli: 'Codex', gemini: 'Gemini', openai: 'OpenAI(GPT)', get claude() { return t('settings.brain_claude_key'); }, genspark: 'Genspark' };

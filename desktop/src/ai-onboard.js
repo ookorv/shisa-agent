@@ -112,8 +112,8 @@ export const BRAIN_CHOICES = [
   { id: 'genspark', title: 'Genspark', get blurb() { return t('setup.ob_genspark_blurb_2'); } },
   { id: 'none', local: true, get title() { return t('setup.ob_none_title'); }, get blurb() { return t('setup.ob_none_blurb'); } },
 ];
-// 「더 연결하기」(선택): 캘린더 ICS · Slack · 레포 폴더
-export const EXTRAS = ['gcal', 'outlook', 'slack', 'repos'];
+// 「더 연결하기」(선택): 캘린더 ICS · Slack · Notion · 레포 폴더
+export const EXTRAS = ['gcal', 'outlook', 'slack', 'notion', 'repos'];
 
 // 「더 연결하기」의 작업 기록 읽기(선택, 처음엔 꺼짐). 켜야만 데몬이 이 맥의 세션 기록을 읽는다
 export const SESSIONS_CONSENT = {
@@ -151,6 +151,7 @@ export const HUB = [
   { id: 'gcal', get title() { return t('setup.ob_gcal_title'); }, get blurb() { return t('setup.ob_gcal_blurb'); }, kind: 'done' },
   { id: 'outlook', get title() { return t('setup.ob_outlook_title'); }, get blurb() { return t('setup.ob_outlook_blurb'); }, kind: 'done' },
   { id: 'slack', title: 'Slack', get blurb() { return t('setup.ob_slack_blurb'); }, kind: 'done', needsAgent: 'claude' },
+  { id: 'notion', title: 'Notion', get blurb() { return t('setup.ob_notion_blurb'); }, kind: 'done', needsAgent: 'claude' },
   { id: 'jira', title: 'Jira', get blurb() { return t('setup.ob_jira_blurb'); }, kind: 'done', needsAgent: 'claude' },
   { id: 'repos', get title() { return t('setup.ob_repos_title'); }, get blurb() { return t('setup.ob_repos_blurb'); }, kind: 'folder' },
   { id: 'github', title: 'GitHub', get blurb() { return t('setup.ob_github_blurb'); }, kind: 'done', needsAgent: true },
@@ -160,8 +161,8 @@ export const HUB = [
 export const PLANS = [
   { id: 'calendar', get title() { return t('setup.ob_calendar_title'); }, get need() { return t('setup.ob_calendar_need'); }, get blurb() { return t('setup.ob_calendar_blurb'); }, ai: 'none', hub: ['gcal', 'outlook'] },
   { id: 'chat', get title() { return t('setup.ob_chat_title'); }, get need() { return t('setup.ob_chat_need'); }, get blurb() { return t('setup.ob_chat_blurb'); }, ai: 'key', hub: ['gcal', 'outlook'] },
-  { id: 'tools', get title() { return t('setup.ob_tools_title'); }, get need() { return t('setup.ob_tools_need'); }, get blurb() { return t('setup.ob_tools_blurb'); }, ai: 'cli', hub: ['gcal', 'outlook', 'slack', 'jira'] },
-  { id: 'code', get title() { return t('setup.ob_code_title'); }, get need() { return t('setup.ob_code_need'); }, get blurb() { return t('setup.ob_code_blurb'); }, ai: 'cli', hub: ['gcal', 'outlook', 'slack', 'jira', 'github'] },
+  { id: 'tools', get title() { return t('setup.ob_tools_title'); }, get need() { return t('setup.ob_tools_need'); }, get blurb() { return t('setup.ob_tools_blurb'); }, ai: 'cli', hub: ['gcal', 'outlook', 'slack', 'notion', 'jira'] },
+  { id: 'code', get title() { return t('setup.ob_code_title'); }, get need() { return t('setup.ob_code_need'); }, get blurb() { return t('setup.ob_code_blurb'); }, ai: 'cli', hub: ['gcal', 'outlook', 'slack', 'notion', 'jira', 'github'] },
 ];
 
 export function planById(id) {
@@ -235,6 +236,7 @@ export function connectSteps(id, agent) {
   if (id === 'outlook') return OUTLOOK;
   if (id === 'jira') return jiraSteps(agent);
   if (id === 'slack') return slackSteps(agent);
+  if (id === 'notion') return notionSteps(agent);
   if (id === 'github') return githubSteps(agent);
   return [];
 }
@@ -451,6 +453,63 @@ function slackSteps(agent) {
         t('setup.ob_slack_check_rows_2'),
         t('setup.ob_jira_check_rows_3'),
         t('setup.ob_slack_check_rows_4'),
+      ],
+      codeLabel: t('setup.ob_jira_add_codelabel'),
+      code: 'claude mcp list',
+    },
+  ];
+}
+
+const NOTION_URL = 'https://mcp.notion.com/mcp';
+
+// 노션 공식 원격 MCP(docs/connect/notion.md). Claude Code 에 등록된 연결만 시사가 읽는다
+function notionSteps(agent) {
+  if (agent !== 'claude') {
+    return [{
+      id: 'notion-need-claude',
+      gate: 'blocked',
+      title: t('setup.ob_jira_need_claude_title'),
+      identity: t('setup.ob_notion_need_claude_identity'),
+      rows: [
+        t('setup.ob_jira_need_claude_rows_0'),
+        t('setup.ob_jira_need_claude_rows_1'),
+        t('setup.ob_notion_need_claude_rows_2'),
+      ],
+    }];
+  }
+  return [
+    {
+      id: 'notion-add',
+      title: t('setup.ob_notion_add_title'),
+      identity: t('setup.ob_notion_add_identity'),
+      rows: [TERMINAL(), PASTE_ENTER(t('setup.ob_jira_add_rows_1'))],
+      codeLabel: t('setup.ob_jira_add_codelabel'),
+      code: `claude mcp add --scope user --transport http notion ${NOTION_URL}`,
+    },
+    {
+      id: 'notion-login',
+      title: t('setup.ob_notion_login_title'),
+      identity: t('setup.ob_jira_login_identity'),
+      rows: [
+        { keys: [MOD, 'V'], text: t('setup.ob_jira_login_text') },
+        t('setup.ob_jira_login_rows_1'),
+        t('setup.ob_notion_login_rows_2'),
+        t('setup.ob_notion_login_rows_3'),
+        t('setup.ob_jira_login_rows_4'),
+      ],
+      codeLabel: t('setup.ob_jira_add_codelabel'),
+      code: 'claude',
+    },
+    {
+      id: 'notion-check',
+      title: t('setup.ob_jira_check_title'),
+      identity: t('setup.ob_notion_check_identity'),
+      rows: [
+        PASTE_ENTER(t('setup.ob_jira_add_rows_1')),
+        t('setup.ob_jira_check_rows_1'),
+        t('setup.ob_notion_check_rows_2'),
+        t('setup.ob_jira_check_rows_3'),
+        t('setup.ob_jira_check_rows_4'),
       ],
       codeLabel: t('setup.ob_jira_add_codelabel'),
       code: 'claude mcp list',

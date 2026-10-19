@@ -29,6 +29,7 @@ test('stepForCap: 기능은 그 단계로, 모르는 건 시작으로', () => {
   assert.equal(stepForCap('calendar'), 'calendar');
   assert.equal(stepForCap('mail'), 'mail');
   assert.equal(stepForCap('issues'), 'issues');
+  assert.equal(stepForCap('notion'), 'notion');
   assert.equal(stepForCap('scrum'), 'welcome');
   assert.equal(stepForCap('nope'), 'welcome');
   assert.equal(stepById('nope').id, 'welcome');

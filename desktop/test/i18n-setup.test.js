@@ -69,7 +69,7 @@ function allScreens() {
       for (const login of [{ loggedIn: true }, { installed: false }, {}]) push({ phase: 'agentWalk', agent, cursor, login }, `agentWalk ${agent} ${cursor}`);
     });
   }
-  for (const link of ['gcal', 'outlook', 'slack', 'jira', 'github', 'claude', 'codex']) for (const connectAgent of ['claude', 'codex', null]) {
+  for (const link of ['gcal', 'outlook', 'slack', 'notion', 'jira', 'github', 'claude', 'codex']) for (const connectAgent of ['claude', 'codex', null]) {
     const steps = link === 'claude' || link === 'codex' ? agentSteps(link) : connectSteps(link, connectAgent);
     steps.forEach((_s, cursor) => push({ phase: 'connect', link, connectAgent, cursor }, `connect ${link} ${connectAgent} ${cursor}`));
   }

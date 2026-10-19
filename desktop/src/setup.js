@@ -215,6 +215,30 @@ export const SETUP_STEPS = [
     ],
   },
   {
+    id: 'notion',
+    cap: 'notion',
+    label: 'Notion',
+    title: 'Notion 연결',
+    lead: '채팅할 때 노션 페이지를 검색하고 읽습니다. 노션 문서를 이 맥에 모아 두지 않고, 쓰기 도구는 막혀 있습니다. Claude Code 뇌일 때만 읽힙니다.',
+    blocks: [
+      { type: 'paths', items: [
+        {
+          title: 'Notion 공식 MCP',
+          badge: 'MCP',
+          hint: '노션 공식 원격 주소입니다. 토큰을 복사하지 않고 브라우저 로그인만 합니다.',
+          steps: [
+            '아래처럼 사용자 범위에 등록합니다.',
+            'claude 를 열고 /mcp → notion → Authenticate 로 브라우저에서 노션 워크스페이스 접근을 허락합니다.',
+            'claude mcp list 에 notion 이 ✔ Connected 인지 확인하고, preset 을 notion 으로 둡니다(검색·읽기 두 도구만).',
+          ],
+          codeLabel: '등록 후 설정',
+          code: 'claude mcp add --scope user --transport http notion https://mcp.notion.com/mcp\n\n{ "connectors": { "notion": { "mode": "mcp", "preset": "notion" } } }',
+          links: [{ href: 'https://developers.notion.com/docs/mcp', text: 'Notion MCP 문서' }],
+        },
+      ] },
+    ],
+  },
+  {
     id: 'done',
     label: '반영',
     title: '저장하고 데몬만 다시 띄우기',

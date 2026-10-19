@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import {
   disconnectBrainBody, withBrainBody, brainRows, brainDisconnectCopy, withConnectorOff, withoutHubDone, hubsOf,
   connectorDisconnectCopy, mcpRemoveCommand, connectorAction, capOfRow, reloadNote, disconnectControl, okCap, okBrainId,
@@ -90,6 +92,7 @@ test('커넥터 연결 해제: config 값·마법사 표시·안내 문구', () 
   assert.equal(next.slackBotToken, 'keep');
   assert.deepEqual(withConnectorOff(null, 'slack'), { connectors: { slack: { mode: 'off' } } });
   assert.deepEqual(hubsOf('calendar'), ['gcal', 'outlook']);
+  assert.deepEqual(hubsOf('notion'), ['notion']);
   assert.deepEqual(withoutHubDone({ gcal: true, outlook: true, slack: true, claude: true }, 'calendar'), { slack: true, claude: true });
   assert.deepEqual(withoutHubDone(undefined, 'issues'), {});
   const mcp = connectorDisconnectCopy('issues', 'atlassian');
@@ -255,4 +258,35 @@ test('화면 연결: 패널·설정 창·마법사·프리로드·main 이 연�
   assert.match(main, /ipcMain\.handle\('sisa-disconnect'/);
   assert.match(main, /post\('\/connectors\/disconnect', \{ cap \}\)/);
   assert.match(main, /request\('PUT', '\/settings', body\)/);
+});
+
+// main.js 의 writeConnector 를 그대로 떼어 임시 홈에서 돌린다
+function loadWriteConnector() {
+  const main = readFileSync(new URL('../main.js', import.meta.url), 'utf8');
+  const src = main.slice(main.indexOf('function writeConnector(id)'), main.indexOf('\n}\n', main.indexOf('function writeConnector(id)')) + 2);
+  return new Function('fs', 'path', 'os', 'NEW_DAEMON_CONFIG', `${src}\nreturn writeConnector;`)(
+    { readFileSync, writeFileSync, mkdirSync: () => {} }, path, os, { connectors: {} });
+}
+
+test('writeConnector notion: 프리셋 notion 으로 켜고, 이미 모드가 있으면 그대로 둔다', () => {
+  const writeConnector = loadWriteConnector();
+  const home = mkdtempSync(path.join(os.tmpdir(), 'cy-notion-'));
+  const file = path.join(home, 'config.json');
+  const prev = process.env.CY_AGENT_HOME;
+  process.env.CY_AGENT_HOME = home;
+  try {
+    writeFileSync(file, JSON.stringify({ slackBotToken: 'keep', connectors: { slack: { mode: 'mcp', server: 'slack' } } }));
+    assert.equal(writeConnector('notion'), true);
+    const cfg = JSON.parse(readFileSync(file, 'utf8'));
+    assert.deepEqual(cfg.connectors.notion, { mode: 'mcp', preset: 'notion' });
+    assert.deepEqual(cfg.connectors.slack, { mode: 'mcp', server: 'slack' });
+    assert.equal(cfg.slackBotToken, 'keep');
+    writeFileSync(file, JSON.stringify({ connectors: { notion: { mode: 'off' } } }));
+    assert.equal(writeConnector('notion'), false);
+    assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')).connectors.notion, { mode: 'off' });
+  } finally {
+    if (prev === undefined) delete process.env.CY_AGENT_HOME; else process.env.CY_AGENT_HOME = prev;
+  }
+  const main = readFileSync(new URL('../main.js', import.meta.url), 'utf8');
+  assert.match(main, /const HUB_IDS = new Set\(\[[^\]]*'notion'/);
 });

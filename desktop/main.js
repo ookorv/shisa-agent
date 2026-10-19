@@ -100,7 +100,7 @@ app.setName(appTitle());
 app.setPath('userData', PORT !== 47823 ? `${userData}-${PORT}` : userData);
 
 const AI_IDS = new Set(KEY_PROVIDERS);
-const HUB_IDS = new Set(['claude', 'codex', 'gcal', 'outlook', 'jira', 'slack']);
+const HUB_IDS = new Set(['claude', 'codex', 'gcal', 'outlook', 'jira', 'slack', 'notion']);
 
 function sisaFile() {
   return path.join(app.getPath('userData'), 'sisa-ai.json');
@@ -141,6 +141,9 @@ function writeConnector(id) {
   } else if (id === 'slack') {
     if (conns.slack && typeof conns.slack === 'object' && conns.slack.mode) return false;
     conns.slack = { mode: 'mcp', server: 'slack' };
+  } else if (id === 'notion') {
+    if (conns.notion && typeof conns.notion === 'object' && conns.notion.mode) return false;
+    conns.notion = { mode: 'mcp', preset: 'notion' };
   } else {
     return false;
   }
