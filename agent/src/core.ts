@@ -47,7 +47,7 @@ import { AttachmentStore, type Attachment } from "./attachments.ts";
 import { ManualProjects, applyProjectOps, parseNewProject, parseOrderBody, parseProjectOrderBody, parseProjectPatch, type ManualProjectView } from "./manual-projects.ts";
 import { Guidelines, applyGuidelineOp, guidelinesApi, setGuidelineStore, type GuidelineCtx, type GuidelinesApi } from "./guidelines.ts";
 import { WAIT_SETUP, modelWorkAllowed, sessionsAllowed } from "./onboarding.ts";
-import { syncNotionProject, type ProjectState } from "./notion-projects.ts";
+import { applyNotionTasks, fetchTodayProjects, NOTION_REF, notionPageId, setNotionProjectState, syncNotionProject, type FetchTodayResult, type ImportResult, type ProjectState } from "./notion-projects.ts";
 import { t, t as tr } from "./i18n.ts"; // tr: 지역 변수 t(할 일·생각)가 가리는 곳
 
 export type Posted = { channel: string; ts: string; permalink?: string };
@@ -95,7 +95,10 @@ export type Deps = {
   // 로컬 뇌 브리핑의 시간대 인사를 띄워도 되나(main: 아침 인사는 출근 인사와 같은 하루 한 번 기록, 다른 시간대는 출근 인사를 막 띄웠으면 안 띄움). 없으면 늘 띄움
   greetOk?: (part: string) => boolean;
   // 노션 Projects 상태 맞추기(▶ 켜기 → 진행 중, 완료 → 완료). 기본 notion-projects.ts — 설정이 없으면 아무것도 안 한다. 던지지 않는다
-  notionSync?: (title: string, state: ProjectState) => Promise<unknown>;
+  // pageId: 노션에서 가져온 할 일이면 그 페이지(제목 검색·새 페이지 없이 바로). 결과에 pageId 가 오면 원본 없는 할 일에 붙여 둔다
+  notionSync?: (title: string, state: ProjectState, pageId?: string) => Promise<unknown>;
+  // 노션 Projects 의 오늘 작업 읽기(기본 notion-projects.ts fetchTodayProjects). 던지지 않는다
+  notionToday?: () => Promise<FetchTodayResult>;
 };
 
 // 같은 Slack 메시지를 너무 자주 고치지 않게(레이트리밋) 진행 로그 갱신을 묶는다
@@ -991,11 +994,27 @@ ${meetingsContext(this.store)}`,
     if (patch.status === "done" && before.status !== "done") recordFeedback(this.store, { kind: "todo_done", ref: id });
     // 노션 Projects 상태(비차단: 기다리지 않고, 실패는 경고 로그만)
     const notion: ProjectState | null = patch.status === "done" && before.status !== "done" ? "done" : patch.doing === true && before.doing !== true ? "doing" : null;
-    if (notion) void (this.deps.notionSync ?? syncNotionProject)(after.title, notion).catch((e) => console.warn("[notion-projects] 동기화 오류:", e?.message ?? e));
+    if (notion) {
+      const pageId = notionPageId(after.sourceRef);
+      const sync = this.deps.notionSync ?? ((title: string, state: ProjectState, page?: string) => (page ? setNotionProjectState(page, state) : syncNotionProject(title, state)));
+      void sync(after.title, notion, pageId)
+        .then((r: any) => { if (!pageId && !after.sourceRef && r?.ok && r.pageId) this.store.linkTodoSource(id, `${NOTION_REF}${r.pageId}`); }) // 다음 가져오기에 겹치지 않게
+        .catch((e) => console.warn("[notion-projects] 동기화 오류:", e?.message ?? e));
+    }
     if (patch.priority !== undefined && patch.priority !== before.priority)
       recordFeedback(this.store, { kind: "todo_priority", ref: id, note: `P${before.priority} → P${patch.priority}` });
     this.changed();
     return after;
+  }
+
+  // 노션 Projects 에서 오늘(날짜) 작업 중 완료 아닌 것을 할 일로 가져오기(노션이 원본). 앱 시작 시·수동(POST /todos/notion/import, 채팅 요청)
+  // 설정이 없으면 { ok:false, skipped }, 실패는 경고 로그만. 던지지 않는다
+  async importNotionToday(): Promise<ImportResult> {
+    const r = await (this.deps.notionToday ?? fetchTodayProjects)();
+    if (!r.ok) return r;
+    const res = applyNotionTasks(this.store, r.tasks);
+    if (res.added || res.updated) this.changed();
+    return { ok: true, ...res };
   }
 
   // 지우기 = 휴지통으로(패널·Slack·채팅·DM·팝오버 공용). 학습 신호는 예전처럼 todo_ignored. 없으면 undefined

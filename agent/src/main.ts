@@ -312,6 +312,7 @@ await bus.listen(cfg.port, {
   todoRestore: (id) => agent.restoreTodo(id),
   todoPurge: (id) => agent.purgeTodo(id),
   todoTrashEmpty: () => agent.emptyTrash(),
+  todoNotionImport: () => agent.importNotionToday(),
   todoRevert: (id) => agent.revertAutoTodo(id),
   todoDetail: (id) => agent.todoDetail(id),
   todoLastAsk: (id) => agent.lastAsk(id),
@@ -605,6 +606,10 @@ setInterval(safe("actions-expire", () => agent.expireActions()), 60e3).unref();
 const purgeTrash = safe("trash", () => { const n = agent.purgeOldTrash(); if (n) console.log(`[cy-agent] 휴지통 오래된 할 일 ${n}개 영구 삭제`); });
 await purgeTrash();
 setInterval(purgeTrash, 24 * 60 * 60e3).unref();
+
+// 노션 Projects 의 오늘 작업 → 할 일(설정이 없으면 아무것도 안 함. 기다리지 않는다)
+void agent.importNotionToday().then((r) => { if (r.ok && (r.added || r.updated)) console.log(`[notion-projects] 오늘 작업 가져옴: 새로 ${r.added} · 바뀜 ${r.updated}`); })
+  .catch((e) => console.warn("[notion-projects] 가져오기 오류:", e?.message ?? e));
 
 await ingest();
 bus.bubble({ text: phraseVoice("hello", {}, `hello:${new Date().toISOString().slice(0, 10)}`, { mood: "excited" }), kind: "info", ttlMs: 8e3 });
