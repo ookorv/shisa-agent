@@ -46,6 +46,7 @@ export type BusHandlers = {
   todoRestore?(id: string): unknown; // 휴지통에서 되살리기. 휴지통에 없으면 undefined → 404
   todoPurge?(id: string): boolean; // 영구 삭제(휴지통에 있는 것만). false → 404
   todoTrashEmpty?(): number; // 휴지통 비우기 → 지운 개수
+  todoNotionImport?(): Promise<unknown>; // 노션 Projects 오늘 작업 가져오기 → { ok, added, updated, unchanged } | { ok:false, skipped|error }
   todayCarry?(decision: "keep" | "demote"): { moved: number } | Promise<{ moved: number }>; // 어제 남은 오늘 꼭: 그대로 · 이번 주로
   todoRevert?(id: string): unknown; // 자동 완료 되돌리기: "missing" → 404, "not_auto" → 409, 그 외 바뀐 할 일 → 200
   // 할 일 팝오버: 묻기(바꾸지 않음) → 적용/거절. 없는 할 일이면 undefined/false → 404
@@ -872,6 +873,10 @@ export class Bus {
         if (!p.ok) throw new BadRequest(p.error);
         if (p.value.projectId && h.projectExists && !h.projectExists(p.value.projectId)) throw new BadRequest("no such project");
         return json(res, 201, { id: (await h.todoAdd(p.value)).id });
+      }
+      if (url.pathname === "/todos/notion/import") {
+        if (!h.todoNotionImport) return json(res, 503, { error: "notion import unavailable" });
+        return json(res, 200, await h.todoNotionImport());
       }
       if (url.pathname === "/todos/trash/empty") {
         if (!h.todoTrashEmpty) return json(res, 503, { error: "todo trash unavailable" });

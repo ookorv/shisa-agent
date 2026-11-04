@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { NOTION_API, NOTION_PROJECTS, notionProjectsConf, syncNotionProject } from "./notion-projects.ts";
+import { NOTION_API, NOTION_PROJECTS, applyNotionTasks, fetchTodayProjects, notionProjectsConf, setNotionProjectState, syncNotionProject } from "./notion-projects.ts";
 import { Store } from "./store.ts";
 import { Bus } from "./bus.ts";
 import { Agent } from "./core.ts";
@@ -88,4 +88,136 @@ test("notion-projects: ▶ 켜기 → 진행 중, 완료 → 완료. 노션이 �
   agent.editTodo(t.id, { status: "done" });
   await new Promise((r) => setImmediate(r));
   assert.deepEqual(calls, [["기획서 쓰기", "doing"], ["기획서 쓰기", "done"]]);
+});
+
+// 노션 페이지 모양(쿼리 결과 한 줄)
+const page = (id: string, title: string, status: string) => ({
+  id, url: `https://www.notion.so/${id}`,
+  properties: { 작업명: { title: [{ plain_text: title }] }, 상태: { status: { name: status } } },
+});
+
+test("notion-projects: 오늘·완료 아닌 작업을 여러 쪽 넘겨 읽는다", async () => {
+  const calls: Call[] = [];
+  const pages = [
+    { results: [page("p1", "기획서 쓰기", "할 일"), page("p2", "리뷰", "진행 중")], has_more: true, next_cursor: "c2" },
+    { results: [page("p3", "끝난 것", "완료"), page("p4", "", "할 일")], has_more: false, next_cursor: null },
+  ];
+  const fetch = async (url: string, init: { method: string; body?: string }) => {
+    calls.push({ method: init.method, url, body: init.body ? JSON.parse(init.body) : undefined });
+    return { ok: true, status: 200, json: async () => pages[calls.length - 1] };
+  };
+  const r = await fetchTodayProjects({ conf, fetch, now: () => NOW });
+  assert.deepEqual(r, { ok: true, tasks: [
+    { pageId: "p1", title: "기획서 쓰기", state: "todo", url: "https://www.notion.so/p1" },
+    { pageId: "p2", title: "리뷰", state: "doing", url: "https://www.notion.so/p2" },
+  ] });
+  assert.equal(calls[0].url, `${NOTION_API}/databases/db1/query`);
+  assert.deepEqual(calls[0].body.filter, { and: [
+    { property: "날짜", date: { equals: "2026-11-04" } },
+    { property: "상태", status: { does_not_equal: "완료" } },
+  ] });
+  assert.equal(calls[0].body.start_cursor, undefined);
+  assert.equal(calls[1].body.start_cursor, "c2");
+  assert.deepEqual(await fetchTodayProjects({ conf: null, fetch }), { ok: false, skipped: true });
+  const warns: string[] = [];
+  const bad = await fetchTodayProjects({ conf, fetch: fakeFetch(null, { at: "/query", status: 401 }).fetch, warn: (m) => warns.push(m) });
+  assert.equal(bad.ok, false);
+  assert.match(warns[0], /401/);
+});
+
+test("notion-projects: 페이지 id 로 바로 상태를 바꾼다(검색·생성 없음)", async () => {
+  const f = fakeFetch(null);
+  assert.deepEqual(await setNotionProjectState("p1", "done", { conf, fetch: f.fetch }), { ok: true, action: "updated", pageId: "p1" });
+  assert.equal(f.calls.length, 1);
+  assert.equal(f.calls[0].method, "PATCH");
+  assert.equal(f.calls[0].url, `${NOTION_API}/pages/p1`);
+  assert.deepEqual(f.calls[0].body, { properties: { 상태: { status: { name: "완료" } } } });
+});
+
+test("notion-projects: 가져오기는 upsert — 새 건 P1, 다시 가져오면 제목·진행중만 맞춘다", () => {
+  const store = new Store(":memory:");
+  const r1 = applyNotionTasks(store, [
+    { pageId: "p1", title: "기획서 쓰기", state: "todo", url: "https://www.notion.so/p1" },
+    { pageId: "p2", title: "리뷰", state: "doing" },
+  ]);
+  assert.deepEqual(r1, { added: 2, updated: 0, unchanged: 0 });
+  const a = store.todoBySourceRef("notion:p1")!.todo!;
+  assert.equal(a.title, "기획서 쓰기");
+  assert.equal(a.priority, 1);
+  assert.equal(a.source, "notion");
+  assert.equal(a.link, "https://www.notion.so/p1");
+  assert.equal(a.doing, undefined);
+  assert.equal(store.todoBySourceRef("notion:p2")!.todo!.doing, true);
+  store.editTodo(a.id, { priority: 3 }); // 앱에서 바꾼 우선순위는 그대로 둔다
+  const r2 = applyNotionTasks(store, [
+    { pageId: "p1", title: "기획서 다시 쓰기", state: "doing" },
+    { pageId: "p2", title: "리뷰", state: "todo" },
+  ]);
+  assert.deepEqual(r2, { added: 0, updated: 2, unchanged: 0 });
+  assert.equal(store.openTodos().length, 2);
+  const a2 = store.getTodo(a.id)!;
+  assert.equal(a2.title, "기획서 다시 쓰기");
+  assert.equal(a2.doing, true);
+  assert.equal(a2.priority, 3);
+  assert.equal(store.todoBySourceRef("notion:p2")!.todo!.doing, undefined);
+  assert.deepEqual(applyNotionTasks(store, [{ pageId: "p2", title: "리뷰", state: "todo" }]), { added: 0, updated: 0, unchanged: 1 });
+});
+
+test("notion-projects: 앱에서 끝냈거나 지운 건 되살리지 않고, 같은 제목의 열린 할 일엔 붙인다", () => {
+  const store = new Store(":memory:");
+  applyNotionTasks(store, [{ pageId: "p1", title: "끝낸 일", state: "todo" }, { pageId: "p2", title: "지운 일", state: "todo" }]);
+  store.editTodo(store.todoBySourceRef("notion:p1")!.todo!.id, { status: "done" });
+  store.trashTodo(store.todoBySourceRef("notion:p2")!.todo!.id);
+  const mine = store.addTodo({ title: "직접 만든 일" });
+  const r = applyNotionTasks(store, [
+    { pageId: "p1", title: "끝낸 일", state: "todo" },
+    { pageId: "p2", title: "지운 일", state: "todo" },
+    { pageId: "p3", title: "직접 만든 일", state: "doing", url: "https://www.notion.so/p3" },
+  ]);
+  assert.deepEqual(r, { added: 0, updated: 1, unchanged: 2 });
+  assert.deepEqual(store.openTodos().map((t) => t.id), [mine.id]);
+  const m = store.getTodo(mine.id)!;
+  assert.equal(m.sourceRef, "notion:p3");
+  assert.equal(m.link, "https://www.notion.so/p3");
+  assert.equal(m.doing, true);
+});
+
+test("notion-projects: 가져온 할 일의 ▶·완료는 페이지 id 로, 앱에서 만든 할 일은 만든 페이지를 붙여 둔다", async () => {
+  const store = new Store(":memory:");
+  const calls: [string, string, string | undefined][] = [];
+  const agent = new Agent(loadConfig({}, {}), store, new Bus(), undefined, {
+    useBroker: false,
+    notionSync: async (title, state, pageId) => { calls.push([title, state, pageId]); return { ok: true, action: pageId ? "updated" : "created", pageId: pageId ?? "made-1" }; },
+    notionToday: async () => ({ ok: true, tasks: [{ pageId: "p1", title: "기획서 쓰기", state: "todo" }] }),
+  });
+  assert.deepEqual(await agent.importNotionToday(), { ok: true, added: 1, updated: 0, unchanged: 0 });
+  const imported = store.todoBySourceRef("notion:p1")!.todo!;
+  agent.editTodo(imported.id, { doing: true });
+  agent.editTodo(imported.id, { status: "done" });
+  const mine = agent.addTodo({ title: "직접 만든 일" });
+  agent.editTodo(mine.id, { doing: true });
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(calls, [["기획서 쓰기", "doing", "p1"], ["기획서 쓰기", "done", "p1"], ["직접 만든 일", "doing", undefined]]);
+  assert.equal(store.getTodo(mine.id)!.sourceRef, "notion:made-1");
+  // 설정이 없으면 건너뛴다
+  const off = new Agent(loadConfig({}, {}), new Store(":memory:"), new Bus(), undefined, { useBroker: false, notionToday: async () => ({ ok: false, skipped: true }) });
+  assert.deepEqual(await off.importNotionToday(), { ok: false, skipped: true });
+});
+
+test("notion-projects: POST /todos/notion/import 로 수동 가져오기", async () => {
+  const bus = new Bus();
+  let n = 0;
+  await bus.listen(0, {
+    approve: async () => "", hold: async () => "", briefing: async () => "", dashboard: async () => ({ generatedAt: "t", projects: [] }),
+    todoDone: () => true, chat: () => "c", chatHistory: () => [],
+    todoNotionImport: async () => { n++; return { ok: true, added: 1, updated: 0, unchanged: 0 }; },
+  });
+  try {
+    const url = `http://127.0.0.1:${(bus.server!.address() as any).port}/todos/notion/import`;
+    assert.equal((await fetch(url, { method: "POST" })).status, 403); // CSRF 헤더 없음
+    const r = await fetch(url, { method: "POST", headers: { "x-cy-agent": "1" } });
+    assert.equal(r.status, 200);
+    assert.deepEqual(await r.json(), { ok: true, added: 1, updated: 0, unchanged: 0 });
+    assert.equal(n, 1);
+  } finally { bus.close(); }
 });

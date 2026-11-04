@@ -385,6 +385,28 @@ export class Store {
     return this.getTodo(id)!;
   }
 
+  // 원본 참조 키(sourceRef)로 찾기 — 휴지통에 든 것도(trashed). 노션 가져오기(notion-projects.ts)가 겹치지 않게 쓴다
+  todoBySourceRef(ref: string): { todo?: Todo; trashed: boolean } | undefined {
+    const r = this.db.prepare("SELECT * FROM todos WHERE source_ref = ? ORDER BY trashed_at IS NOT NULL, created DESC LIMIT 1").get(ref) as any;
+    return r ? (r.trashed_at ? { trashed: true } : { todo: todoRow(r), trashed: false }) : undefined;
+  }
+  // 원본(노션 등)에 맞춰 제목·(진행중) 고치기. 사용자 편집 아님 — user_edited 안 건드림. 바뀐 게 있으면 true
+  syncTodo(id: string, p: { title?: string; doing?: boolean | null }): boolean {
+    const cur = this.getTodo(id);
+    if (!cur) return false;
+    const sets: string[] = [], vals: (string | number | null)[] = [], what: string[] = [];
+    if (p.title !== undefined && p.title !== cur.title) { sets.push("title = ?"); vals.push(p.title); what.push("title"); }
+    if (p.doing !== undefined && p.doing !== (cur.doing ?? null)) { sets.push("doing = ?"); vals.push(p.doing === null ? null : p.doing ? 1 : 0); what.push("doing"); }
+    if (!sets.length) return false;
+    this.db.prepare(`UPDATE todos SET ${sets.join(", ")}, updated = ? WHERE id = ?`).run(...vals, now(), id);
+    this.log(id, p.title ?? cur.title, "edited", "auto", what.join(","));
+    return true;
+  }
+  // 원본 참조·링크 붙이기(비어 있을 때만 — 이미 있는 건 덮지 않는다)
+  linkTodoSource(id: string, ref: string, link?: string) {
+    this.db.prepare("UPDATE todos SET source_ref = coalesce(source_ref, ?), link = coalesce(link, ?) WHERE id = ?").run(ref, link ?? null, id);
+  }
+
   // 설명·원본 캐시(사용자 편집 아님 — user_edited 안 건드림)
   // 할 일 규칙이 바꾸는 우선순위·메모(사용자 편집 아님 — user_edited 안 건드림. 열린 할 일만)
   ruleUpdateTodo(id: string, p: { priority?: number; note?: string | null }) {
